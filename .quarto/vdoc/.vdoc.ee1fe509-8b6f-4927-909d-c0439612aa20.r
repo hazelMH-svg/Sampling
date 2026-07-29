@@ -1,0 +1,100 @@
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#| message: false
+library(tidyverse)
+library(primer.data)
+#
+#
+#
+shaming
+#
+#
+#
+#
+truth <- mean(shaming$age, na.rm = TRUE)
+truth
+#
+#
+#
+#
+#
+#
+#| cache: true
+set.seed(10)
+samples <- tibble(sample = 1:1000) |> 
+  mutate(
+    draw = map(sample, \(i) slice_sample(shaming, n = 50)),
+    sample_mean = map_dbl(draw, \(d) mean(d$age, na.rm = TRUE)),
+    sample_se = map_dbl(draw, \(d) sd(d$age, na.rm = TRUE) / sqrt(50)),
+    lower = sample_mean - 1.96 * sample_se,
+    upper = sample_mean + 1.96 * sample_se
+  ) |> 
+  select(-draw)
+#
+#
+#
+samples |> 
+  slice(1:100) |> 
+  mutate(trial = row_number()) |> 
+  ggplot(aes(y = trial)) +
+  geom_errorbarh(aes(xmin = lower, xmax = upper),
+                 height = 0.3, alpha = 0.5) +
+  geom_point(aes(x = sample_mean), size = 0.6) +
+  geom_vline(xintercept = truth, color = "red",
+             linetype = "dashed") +
+  labs(title = "100 unbiased samples of 50 voters each",
+       subtitle = "About 95% of the intervals contain the truth",
+       x = "Age (years)",
+       y = "Sample number",
+       caption = "Source: Gerber, Green, Larimer 2008 via primer.data::shaming") +
+  theme_minimal()
+#
+#
+#
+coverage_frac <- samples |> 
+  summarize(frac = mean(lower < truth & upper > truth)) |> 
+  pull(frac)
+
+coverage_frac
+#
+#
+#
+#| cache: true
+set.seed(10)
+biased_samples <- tibble(sample = 1:1000) |> 
+  mutate(
+    draw = map(sample, \(i) slice_sample(shaming, n = 50,
+                                          weight_by = if_else(age > 40, 3, 1))),
+    sample_mean = map_dbl(draw, \(d) mean(d$age, na.rm = TRUE)),
+    sample_se = map_dbl(draw, \(d) sd(d$age, na.rm = TRUE) / sqrt(50)),
+    lower = sample_mean - 1.96 * sample_se,
+    upper = sample_mean + 1.96 * sample_se
+  ) |> 
+  select(-draw)
+#
+#
+#
+biased_samples |> 
+  ggplot(aes(x = sample_mean)) +
+  geom_density(fill = "skyblue", alpha = 0.5) +
+  geom_vline(xintercept = truth, color = "red", linetype = "dashed") +
+  geom_vline(xintercept = mean(biased_samples$sample_mean),
+             color = "black", linewidth = 0.8) +
+  labs(
+    title = "Density of biased sample means",
+    x = "Sample mean",
+    y = "Density"
+  ) +
+  theme_minimal()
+#
+#
+#
+#
