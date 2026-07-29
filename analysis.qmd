@@ -24,14 +24,6 @@ truth
 ```
 
 
-```{r}
-set.seed(10)
-my_sample <- shaming |> slice_sample(n = 50)
-sample_mean <- mean(my_sample$age, na.rm = TRUE)
-sample_mean
-sample_se <- sd(my_sample$age, na.rm = TRUE) / sqrt(50)
-sample_se
-```
 
 
 ```{r}
@@ -50,19 +42,19 @@ samples <- tibble(sample = 1:1000) |>
 
 ```{r}
 samples |> 
-  slice_head(n = 100) |> 
-  ggplot(aes(y = sample, x = sample_mean, xmin = lower, xmax = upper)) +
-  geom_errorbarh(height = 0.3) +
-  geom_point() +
-  geom_vline(xintercept = truth, color = "red", linetype = "dashed") +
-  scale_y_continuous(breaks = NULL) +
-  labs(
-    x = "Sample mean age (years)",
-    y = "Sample draw",
-    title = "Confidence intervals from 100 simulated samples",
-    subtitle = "About 95% of 95% intervals should contain the true mean age.",
-    caption = "Data from the primer.data package"
-  ) +
+  slice(1:100) |> 
+  mutate(trial = row_number()) |> 
+  ggplot(aes(y = trial)) +
+  geom_errorbarh(aes(xmin = lower, xmax = upper),
+                 height = 0.3, alpha = 0.5) +
+  geom_point(aes(x = sample_mean), size = 0.6) +
+  geom_vline(xintercept = truth, color = "red",
+             linetype = "dashed") +
+  labs(title = "100 unbiased samples of 50 voters each",
+       subtitle = "About 95% of the intervals contain the truth",
+       x = "Age (years)",
+       y = "Sample number",
+       caption = "Source: Gerber, Green, Larimer 2008 via primer.data::shaming") +
   theme_minimal()
 ```
 
@@ -72,4 +64,34 @@ coverage_frac <- samples |>
   pull(frac)
 
 coverage_frac
+```
+
+```{r}
+#| cache: true
+set.seed(10)
+biased_samples <- tibble(sample = 1:1000) |> 
+  mutate(
+    draw = map(sample, \(i) slice_sample(shaming, n = 50,
+                                          weight_by = if_else(age > 40, 3, 1))),
+    sample_mean = map_dbl(draw, \(d) mean(d$age, na.rm = TRUE)),
+    sample_se = map_dbl(draw, \(d) sd(d$age, na.rm = TRUE) / sqrt(50)),
+    lower = sample_mean - 1.96 * sample_se,
+    upper = sample_mean + 1.96 * sample_se
+  ) |> 
+  select(-draw)
+```
+
+```{r}
+biased_samples |> 
+  ggplot(aes(x = sample_mean)) +
+  geom_density(fill = "skyblue", alpha = 0.5) +
+  geom_vline(xintercept = truth, color = "red", linetype = "dashed") +
+  geom_vline(xintercept = mean(biased_samples$sample_mean),
+             color = "black", linewidth = 0.8) +
+  labs(
+    title = "Density of biased sample means",
+    x = "Sample mean",
+    y = "Density"
+  ) +
+  theme_minimal()
 ```
